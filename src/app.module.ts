@@ -12,6 +12,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { getDataSourceOptions } from './database/data-source';
+import { ItemsModule } from './items/items.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { RedisModule } from './redis/redis.module';
     }),
     RedisModule,
     AuthModule,
+    ItemsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

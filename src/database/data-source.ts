@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { User } from '../users/entities/user.entity';
+import { Item } from '../items/entities/item.entity';
 import { CreateUsersTable1700000000000 } from './migrations/1700000000000-CreateUsersTable';
+import { CreateItemsTable1700000000001 } from './migrations/1700000000001-CreateItemsTable';
 
 export const getDataSourceOptions = (): DataSourceOptions => {
   const dbType = process.env.DB_TYPE || 'mysql';
@@ -11,8 +13,11 @@ export const getDataSourceOptions = (): DataSourceOptions => {
       type: 'sqljs',
       location: process.env.DB_DATABASE || 'database.sqlite',
       autoSave: true,
-      entities: [User],
-      migrations: [CreateUsersTable1700000000000],
+      entities: [User, Item],
+      migrations: [
+        CreateUsersTable1700000000000,
+        CreateItemsTable1700000000001,
+      ],
       synchronize: false,
     };
   }
@@ -24,8 +29,8 @@ export const getDataSourceOptions = (): DataSourceOptions => {
     username: process.env.DB_USERNAME || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_DATABASE || 'nestjs_tutorial',
-    entities: [User],
-    migrations: [CreateUsersTable1700000000000],
+    entities: [User, Item],
+    migrations: [CreateUsersTable1700000000000, CreateItemsTable1700000000001],
     synchronize: false,
   };
 };
