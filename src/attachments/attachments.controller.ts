@@ -6,7 +6,13 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -59,10 +65,7 @@ export class AttachmentsController {
   @ApiParam({ name: 'id', description: 'UUID của attachment' })
   @ApiResponse({ status: 200, description: 'Trả về file binary' })
   @ApiResponse({ status: 404, description: 'File không tồn tại' })
-  async getPrivateAttachment(
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  async getPrivateAttachment(@Param('id') id: string, @Res() res: Response) {
     const attachment = await this.attachmentsService.findById(id);
     if (!attachment) {
       throw new NotFoundException('Attachment không tồn tại');
