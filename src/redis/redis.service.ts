@@ -26,7 +26,16 @@ export class RedisService implements OnModuleDestroy {
       lazyConnect: false,
       enableOfflineQueue: false,
       retryStrategy: (times) => {
-        const delay = Math.min(times * 100, 3000);
+        // Nếu thử lại quá 3 lần mà không có Redis server thì tạm dừng retry liên tục để không spam console
+        if (times > 3) {
+          if (times === 4) {
+            this.logger.warn(
+              'Redis server is not running on localhost:6379. Pausing retry spam. Please start Redis or Docker when testing blacklist logout.',
+            );
+          }
+          return null;
+        }
+        const delay = Math.min(times * 500, 3000);
         this.logger.warn(
           `Redis disconnected. Reconnecting attempt #${times} in ${delay}ms`,
         );
@@ -35,7 +44,8 @@ export class RedisService implements OnModuleDestroy {
     });
 
     this.client.on('error', (err) => {
-      this.logger.error(`Redis connection error: ${err.message}`, err.stack);
+      // Chỉ log cảnh báo khi không kết nối được để terminal không bị ngập stack trace
+      this.logger.warn(`Redis connection error: ${err.message}`);
     });
   }
 
