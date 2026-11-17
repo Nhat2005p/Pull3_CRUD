@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ClassSerializerInterceptor,
   Controller,
@@ -30,10 +31,17 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { User } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserProfileResponseDto } from './serializers/user-profile.serializer';
 import { UsersService } from './users.service';
+
+const MIME_TYPE_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
 
 const uploadDir = path.join(process.cwd(), 'uploads/avatars');
 if (!fs.existsSync(uploadDir)) {
@@ -56,11 +64,24 @@ export class UsersController {
           cb(null, uploadDir);
         },
         filename: (req, file, cb) => {
-          const ext = path.extname(file.originalname);
+          // Quyết định đuôi file theo MIME type do server kiểm soát
+          const ext = MIME_TYPE_MAP[file.mimetype] || '.jpg';
           const uniqueName = `${uuidv4()}${ext}`;
           cb(null, uniqueName);
         },
       }),
+      fileFilter: (req, file, cb) => {
+        // Chỉ chấp nhận các MIME type ảnh hợp lệ (jpeg, png, webp)
+        if (!MIME_TYPE_MAP[file.mimetype]) {
+          return cb(
+            new BadRequestException(
+              'Chỉ cho phép tải lên định dạng ảnh hợp lệ (jpeg, png, webp)',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
     }),
   )
@@ -82,6 +103,8 @@ export class UsersController {
   }
 
   @Get(':id/profile')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'Get Profile (Xem thông tin trang cá nhân và avatar, số follower/following)',

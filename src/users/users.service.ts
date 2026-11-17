@@ -5,11 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { plainToInstance } from 'class-transformer';
 import { Repository } from 'typeorm';
 import { AttachmentsService } from '../attachments/attachments.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
+import { UserProfileResponseDto } from './serializers/user-profile.serializer';
 
 @Injectable()
 export class UsersService {
@@ -33,7 +35,7 @@ export class UsersService {
     id: number,
     updateUserDto: UpdateUserDto,
     avatarFile?: Express.Multer.File,
-  ): Promise<any> {
+  ): Promise<UserProfileResponseDto> {
     const user = await this.findById(id);
 
     if (updateUserDto.name !== undefined) {
@@ -59,13 +61,30 @@ export class UsersService {
       );
     }
 
-    return {
-      ...savedUser,
-      avatar: avatarAttachment,
-    };
+    const followersCount = await this.followRepository.count({
+      where: { followingId: id },
+    });
+
+    const followingCount = await this.followRepository.count({
+      where: { followerId: id },
+    });
+
+    return plainToInstance(
+      UserProfileResponseDto,
+      {
+        ...savedUser,
+        avatar: avatarAttachment,
+        followersCount,
+        followingCount,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
-  async getProfile(targetUserId: number, currentUserId?: number): Promise<any> {
+  async getProfile(
+    targetUserId: number,
+    currentUserId?: number,
+  ): Promise<UserProfileResponseDto> {
     const user = await this.findById(targetUserId);
 
     const followersCount = await this.followRepository.count({
@@ -89,13 +108,17 @@ export class UsersService {
       targetUserId,
     );
 
-    return {
-      ...user,
-      avatar: avatarAttachment,
-      followersCount,
-      followingCount,
-      isFollowing,
-    };
+    return plainToInstance(
+      UserProfileResponseDto,
+      {
+        ...user,
+        avatar: avatarAttachment,
+        followersCount,
+        followingCount,
+        isFollowing,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   async followUser(

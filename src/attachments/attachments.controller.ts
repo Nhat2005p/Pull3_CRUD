@@ -24,38 +24,6 @@ import { AttachmentsService } from './attachments.service';
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
 
-  @Get('public/avatars/:filename')
-  @ApiOperation({
-    summary: 'Public endpoint truy cập avatar',
-  })
-  @ApiParam({ name: 'filename', description: 'Tên file avatar' })
-  async getPublicAvatar(
-    @Param('filename') filename: string,
-    @Res() res: Response,
-  ) {
-    const filePath = path.join(process.cwd(), 'uploads/avatars', filename);
-    if (!fs.existsSync(filePath)) {
-      throw new NotFoundException('File không tồn tại');
-    }
-    return res.sendFile(filePath);
-  }
-
-  @Get('avatars/:filename')
-  @ApiOperation({
-    summary: 'Public endpoint truy cập avatar (dưới prefix api)',
-  })
-  @ApiParam({ name: 'filename', description: 'Tên file avatar' })
-  async getPublicAvatarUnderApi(
-    @Param('filename') filename: string,
-    @Res() res: Response,
-  ) {
-    const filePath = path.join(process.cwd(), 'uploads/avatars', filename);
-    if (!fs.existsSync(filePath)) {
-      throw new NotFoundException('File không tồn tại');
-    }
-    return res.sendFile(filePath);
-  }
-
   @Get('attachments/:id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -72,8 +40,11 @@ export class AttachmentsController {
     }
 
     const filename = path.basename(attachment.url);
-    const filePath = path.join(process.cwd(), 'uploads/avatars', filename);
-    if (!fs.existsSync(filePath)) {
+    const safeUploadDir = path.resolve(process.cwd(), 'uploads/avatars');
+    const filePath = path.resolve(safeUploadDir, filename);
+
+    // Chống path traversal: đảm bảo filePath luôn nằm trong safeUploadDir
+    if (!filePath.startsWith(safeUploadDir) || !fs.existsSync(filePath)) {
       throw new NotFoundException('File không tồn tại trên hệ thống');
     }
 

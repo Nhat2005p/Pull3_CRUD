@@ -82,7 +82,7 @@ describe('UsersService', () => {
   });
 
   describe('updateUser', () => {
-    it('should update name and bio successfully', async () => {
+    it('should update name and bio successfully and NOT expose password hash', async () => {
       mockUserRepository.findOne.mockResolvedValue({ ...mockUser });
 
       const result = await service.updateUser(1, {
@@ -93,9 +93,12 @@ describe('UsersService', () => {
       expect(result.name).toBe('Minh Nhat Updated');
       expect(result.bio).toBe('Updated Bio');
       expect(mockUserRepository.save).toHaveBeenCalled();
+      // Đảm bảo ClassSerializer / plainToInstance loại bỏ triệt để hash password
+      expect(result.password).toBeUndefined();
+      expect(result).not.toHaveProperty('password');
     });
 
-    it('should attach avatar when file is uploaded', async () => {
+    it('should attach avatar when file is uploaded and NOT expose password hash', async () => {
       mockUserRepository.findOne.mockResolvedValue({ ...mockUser });
 
       const fakeFile = {
@@ -113,11 +116,13 @@ describe('UsersService', () => {
         1,
       );
       expect(result.avatar).toBeDefined();
+      expect(result.password).toBeUndefined();
+      expect(result).not.toHaveProperty('password');
     });
   });
 
   describe('getProfile', () => {
-    it('should return user profile with followersCount and followingCount', async () => {
+    it('should return user profile with followersCount and followingCount and NOT expose password hash', async () => {
       mockUserRepository.findOne.mockResolvedValue(mockUser);
       mockFollowRepository.count
         .mockResolvedValueOnce(5) // followersCount
@@ -128,6 +133,9 @@ describe('UsersService', () => {
       expect(profile.email).toBe('nhat@example.com');
       expect(profile.followersCount).toBe(5);
       expect(profile.followingCount).toBe(3);
+      // Đảm bảo ClassSerializer / plainToInstance loại bỏ triệt để hash password
+      expect(profile.password).toBeUndefined();
+      expect(profile).not.toHaveProperty('password');
     });
   });
 

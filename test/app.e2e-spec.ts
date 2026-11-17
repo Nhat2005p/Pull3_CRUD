@@ -1,4 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { AbstractLoader } from '@nestjs/serve-static/dist/loaders/abstract.loader';
+import { ExpressLoader } from '@nestjs/serve-static/dist/loaders/express.loader';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { DataSource } from 'typeorm';
@@ -31,6 +33,8 @@ describe('User APIs & Attachments Flow (e2e)', () => {
     })
       .overrideProvider(RedisService)
       .useValue(mockRedisService)
+      .overrideProvider(AbstractLoader)
+      .useClass(ExpressLoader)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -99,7 +103,20 @@ describe('User APIs & Attachments Flow (e2e)', () => {
     user2Token = login2.body.accessToken;
   });
 
-  it('/api/users/me (PATCH) - Update User with name, bio and avatar upload (Multer)', async () => {
+  it('/api/users/me (PATCH) - Reject invalid file upload (XSS/HTML prevention)', async () => {
+    const maliciousHtml = Buffer.from('<script>alert("xss")</script>');
+
+    await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user1Token}`)
+      .attach('avatar', maliciousHtml, {
+        filename: 'malicious.html',
+        contentType: 'text/html',
+      })
+      .expect(400);
+  });
+
+  it('/api/users/me (PATCH) - Update User with name, bio and avatar upload (Multer) & never leak password', async () => {
     const fakeImageBuffer = Buffer.from('fake-image-binary-data');
 
     const res = await request(app.getHttpServer())
@@ -107,7 +124,10 @@ describe('User APIs & Attachments Flow (e2e)', () => {
       .set('Authorization', `Bearer ${user1Token}`)
       .field('name', 'User One Updated')
       .field('bio', 'Software Engineer & NestJS Developer')
-      .attach('avatar', fakeImageBuffer, 'avatar.png')
+      .attach('avatar', fakeImageBuffer, {
+        filename: 'avatar.png',
+        contentType: 'image/png',
+      })
       .expect(200);
 
     expect(res.body.name).toBe('User One Updated');
@@ -115,18 +135,32 @@ describe('User APIs & Attachments Flow (e2e)', () => {
     expect(res.body.avatar).toBeDefined();
     expect(res.body.avatar.id).toBeDefined();
     expect(res.body.avatar.url).toContain('/public/avatars/');
+    // Kiểm tra đuôi file do server tạo dựa trên MIME (png -> .png)
+    expect(res.body.avatar.url).toMatch(/\.png$/);
+
+    // Không bao giờ trả về hash password
+    expect(res.body.password).toBeUndefined();
+    expect(res.body).not.toHaveProperty('password');
+
     avatarAttachmentId = res.body.avatar.id;
   });
 
-  it('/api/public/avatars/:file (GET) - Public access to uploaded avatar file', async () => {
+  it('/public/avatars/:file (GET) - Public access to uploaded avatar file via ServeStaticModule', async () => {
     const profile = await request(app.getHttpServer())
       .get(`/api/users/${user1Id}/profile`)
       .expect(200);
 
     const avatarUrl = profile.body.avatar.url;
 
-    // Public access does not require Authorization header
-    await request(app.getHttpServer()).get(`/api${avatarUrl}`).expect(200);
+    // Truy cập trực tiếp qua ServeStaticModule (không qua endpoint controller thủ công)
+    await request(app.getHttpServer()).get(avatarUrl).expect(200);
+  });
+
+  it('Path traversal protection: removed manual endpoints & directory traversal is blocked', async () => {
+    // Đảm bảo endpoint cũ không còn tồn tại và không cho phép path traversal
+    await request(app.getHttpServer())
+      .get('/api/avatars/..%2F..%2Fpackage.json')
+      .expect(404);
   });
 
   it('/api/attachments/:id (GET) - Private access to attachment with auth verification', async () => {
@@ -142,7 +176,7 @@ describe('User APIs & Attachments Flow (e2e)', () => {
       .expect(200);
   });
 
-  it('/api/users/:id/profile (GET) - Get Profile with followers/following counts', async () => {
+  it('/api/users/:id/profile (GET) - Get Profile without password and with follower counts', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/users/${user1Id}/profile`)
       .expect(200);
@@ -151,6 +185,11 @@ describe('User APIs & Attachments Flow (e2e)', () => {
     expect(res.body.email).toBe('user1@example.com');
     expect(res.body.followersCount).toBe(0);
     expect(res.body.followingCount).toBe(0);
+    expect(res.body.isFollowing).toBe(false);
+
+    // Tuyệt đối không trả về hash password cho public profile
+    expect(res.body.password).toBeUndefined();
+    expect(res.body).not.toHaveProperty('password');
   });
 
   it('/api/users/:id/follow (POST) - Follow User (User 2 follows User 1)', async () => {
@@ -164,8 +203,10 @@ describe('User APIs & Attachments Flow (e2e)', () => {
     // Check profile follower count
     const profile = await request(app.getHttpServer())
       .get(`/api/users/${user1Id}/profile`)
+      .set('Authorization', `Bearer ${user2Token}`)
       .expect(200);
     expect(profile.body.followersCount).toBe(1);
+    expect(profile.body.isFollowing).toBe(true);
   });
 
   it('/api/users/:id/follow (POST) - Reject duplicate follow with 409 Conflict', async () => {
