@@ -23,6 +23,9 @@ export class User {
   @Column({ length: USER_CONSTRAINTS.EMAIL_MAX_LENGTH })
   password: string;
 
+  @Column({ type: 'text', nullable: true })
+  bio?: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
